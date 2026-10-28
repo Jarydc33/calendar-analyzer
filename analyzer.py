@@ -30,8 +30,12 @@ def load_csv(file):
 
     columns = df.columns.tolist()
 
+    file.seek(0)
+
     if "Meeting Organizer" in columns:
         return load_outlook_csv(file)
+
+    file.seek(0)
 
     if "Organizer" in columns:
         return load_google_csv(file)
@@ -41,24 +45,32 @@ def load_csv(file):
         "calendar_type": "Unknown"
     }
 
-def load_outlook_csv(path):
-    df = pd.read_csv(path)
+def load_outlook_csv(file):
+
+    df = pd.read_csv(file)
 
     df["Start"] = pd.to_datetime(
-        df["Start Date"] + " " + df["Start Time"]
+        df["Start Date"] + " " + df["Start Time"],
+        utc=True
     )
 
     df["End"] = pd.to_datetime(
-        df["End Date"] + " " + df["End Time"]
+        df["End Date"] + " " + df["End Time"],
+        utc=True
     )
 
     df["DurationHours"] = (
         df["End"] - df["Start"]
     ).dt.total_seconds() / 3600
 
+    df["SourceCalendar"] = file.name
+    df["CalendarType"] = "Outlook Calendar"
+
     return {
         "data": df,
-        "calendar_type": "Outlook Calendar"
+        "calendar_type": "Outlook Calendar",
+        "events_loaded": len(df),
+        "events_skipped": 0
     }
 
 def generate_summary(df):
@@ -535,53 +547,15 @@ TIME BY WEEKDAY
     return report
 
 def load_ics(file):
-    
+
+    skipped_count = 0
+    loaded_count = 0
+
     calendar = Calendar.from_ical(
         file.read()
     )
-    
-    events = []
-
-    for component in calendar.walk():
-
-        if component.name == "VEVENT":
-
-            subject = str(
-                component.get("summary", "")
-            )
-
-            start_prop = component.get("dtstart")
-            end_prop = component.get("dtend")
-
-            if start_prop is None or end_prop is None:
-                continue
-
-            start = pd.to_datetime(start_prop.dt)
-            end = pd.to_datetime(end_prop.dt)
-
-            events.append({
-                "Subject": subject,
-                "Start": pd.to_datetime(start),
-                "End": pd.to_datetime(end)
-            })
-
-    df = pd.DataFrame(events)
-    df["Start"] = pd.to_datetime(
-        df["Start"],
-        utc=True
-    )
-
-    df["End"] = pd.to_datetime(
-        df["End"],
-        utc=True
-    )
-
-    df["DurationHours"] = (
-        df["End"] - df["Start"]
-    ).dt.total_seconds() / 3600
-
     prodid = str(calendar.get("prodid", "")).lower()
-
+    
     if "google" in prodid:
         calendar_type = "Google Calendar"
 
@@ -599,10 +573,58 @@ def load_ics(file):
 
     else:
         calendar_type = "ICS File"
+    
+    events = []
+
+    for component in calendar.walk():
+
+        if component.name == "VEVENT":
+            loaded_count += 1
+
+            subject = str(
+                component.get("summary", "")
+            )
+
+            start_prop = component.get("dtstart")
+            end_prop = component.get("dtend")
+
+            if start_prop is None or end_prop is None:
+                skipped_count += 1
+                continue
+
+            start = pd.to_datetime(start_prop.dt)
+            end = pd.to_datetime(end_prop.dt)
+
+            events.append({
+                "Subject": subject,
+                "Start": pd.to_datetime(start),
+                "End": pd.to_datetime(end),
+                "SourceCalendar": file.name,
+                "CalendarType": calendar_type
+            })
+
+    df = pd.DataFrame(events)
+    df["Start"] = pd.to_datetime(
+        df["Start"],
+        utc=True
+    )
+
+    df["End"] = pd.to_datetime(
+        df["End"],
+        utc=True
+    )
+
+    df["DurationHours"] = (
+        df["End"] - df["Start"]
+    ).dt.total_seconds() / 3600
+
+    
 
     return {
         "data": df,
-        "calendar_type": calendar_type
+        "calendar_type": calendar_type,
+        "events_loaded": loaded_count,
+        "events_skipped": skipped_count
     }
 
 def load_google_csv(file):
@@ -610,18 +632,25 @@ def load_google_csv(file):
     df = pd.read_csv(file)
 
     df["Start"] = pd.to_datetime(
-        df["Start Date"] + " " + df["Start Time"]
+        df["Start Date"] + " " + df["Start Time"],
+        utc=True
     )
 
     df["End"] = pd.to_datetime(
-        df["End Date"] + " " + df["End Time"]
+        df["End Date"] + " " + df["End Time"],
+        utc=True
     )
 
     df["DurationHours"] = (
         df["End"] - df["Start"]
     ).dt.total_seconds() / 3600
 
+    df["SourceCalendar"] = file.name
+    df["CalendarType"] = "Google Calendar"
+
     return {
         "data": df,
-        "calendar_type": "Google Calendar"
+        "calendar_type": "Google Calendar",
+        "events_loaded": len(df),
+        "events_skipped": 0
     }
