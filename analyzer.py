@@ -535,11 +535,11 @@ TIME BY WEEKDAY
     return report
 
 def load_ics(file):
-
+    
     calendar = Calendar.from_ical(
         file.read()
     )
-
+    
     events = []
 
     for component in calendar.walk():
@@ -554,7 +554,6 @@ def load_ics(file):
             end_prop = component.get("dtend")
 
             if start_prop is None or end_prop is None:
-                skipped_events += 1
                 continue
 
             start = pd.to_datetime(start_prop.dt)
@@ -565,10 +564,7 @@ def load_ics(file):
                 "Start": pd.to_datetime(start),
                 "End": pd.to_datetime(end)
             })
-    print(
-        f"Loaded {len(events)} events "
-        f"({skipped_events} skipped)"
-    )
+
     df = pd.DataFrame(events)
     df["Start"] = pd.to_datetime(
         df["Start"],
@@ -584,9 +580,29 @@ def load_ics(file):
         df["End"] - df["Start"]
     ).dt.total_seconds() / 3600
 
+    prodid = str(calendar.get("prodid", "")).lower()
+
+    if "google" in prodid:
+        calendar_type = "Google Calendar"
+
+    elif "outlook" in prodid:
+        calendar_type = "Outlook Calendar"
+
+    elif "microsoft" in prodid:
+        calendar_type = "Outlook Calendar"
+
+    elif "apple" in prodid:
+        calendar_type = "Apple Calendar"
+
+    elif "icloud" in prodid:
+        calendar_type = "iCloud Calendar"
+
+    else:
+        calendar_type = "ICS File"
+
     return {
         "data": df,
-        "calendar_type": "ICS File"
+        "calendar_type": calendar_type
     }
 
 def load_google_csv(file):
