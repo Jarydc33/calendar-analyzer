@@ -20,7 +20,7 @@ with st.sidebar:
     Upload an Outlook or Google Calendar export
     and generate meeting analytics.
 
-    Version 1.3
+    Version 1.3.1
     """)
 
     st.divider()
