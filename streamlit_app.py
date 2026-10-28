@@ -1,10 +1,11 @@
 import streamlit as st
 
 from analyzer import (
-    load_calendar,
+    load_outlook_csv,
     generate_summary,
     generate_charts,
-    generate_report
+    generate_report,
+    load_calendar
 )
 
 # ==========================
@@ -21,10 +22,7 @@ with st.sidebar:
     Version 1.0
     """)
 
-    uploaded_file = st.file_uploader(
-        "Upload Calendar CSV",
-        type=["csv"]
-    )
+
 
 # ==========================
 # MAIN PAGE
@@ -32,13 +30,25 @@ with st.sidebar:
 
 st.title("📅 Calendar Analyzer")
 
+uploaded_file = st.file_uploader(
+    "Upload Calendar File",
+    type=["csv", "ics"]
+)
+
 if uploaded_file:
 
-    df = load_calendar(uploaded_file)
+    result = load_calendar(uploaded_file)
+
+    df = result["data"]
+    calendar_type = result["calendar_type"]
 
     summary = generate_summary(df)
 
     report_text = generate_report(summary)
+
+    st.success(
+        f"Detected Calendar Type: {calendar_type}"
+    )
 
     col1, col2, col3, col4 = st.columns(4)
 
